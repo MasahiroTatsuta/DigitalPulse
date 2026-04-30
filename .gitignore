@@ -2,10 +2,11 @@
 # 1. セキュリティ & 環境変数 (絶対にあげてはいけない)
 # =================================================================
 # Spring Bootの機密情報
-**/src/main/resources/application.properties
-**/src/main/resources/application.yml
+# **/src/main/resources/application.properties
+# **/src/main/resources/application.yml
 
 # Next.js / Node.js の機密情報
+.env
 .env.local
 .env.development.local
 .env.test.local

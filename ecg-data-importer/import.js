@@ -1,76 +1,98 @@
+require('dotenv').config();
 const fs = require('fs');
-const csv = require('csv-parser');
 const mysql = require('mysql2');
+const csv = require('csv-parser');
 
-// 1. ファイル名の確認（ここを実際のファイル名に合わせてください）
-const CSV_FILE = 'mitbih_train.csv'; 
-
-const connection = mysql.createConnection({
-    host: 'localhost',
-    user: 'root',
-    password: '1234', // ご自身のパスワード
-    database: 'ecg_app'
-});
-
-connection.connect((err) => {
-    if (err) {
-        console.error('データベース接続エラー:', err);
-        return;
-    }
-    console.log('データベースに接続しました。');
-});
+// 1. .env から URL を取得
+// 2. もし .env がなかったり空だったりしたら、ローカルホストをデフォルトにする
+const dbUrl = process.env.DATABASE_URL || 'mysql://root:password@localhost:3306/ecg_db';
+console.log(`接続先: ${dbUrl.includes('railway') ? '🚀 クラウド (Railway)' : '🏠 ローカルホスト'}`);
+const connection = mysql.createConnection(dbUrl);
 
 const results = [];
-let count = 0;
 
-// 2. CSV読み込み開始
-console.log(`${CSV_FILE} を読み込み中...`);
+console.log('mitbih_train.csv を読み込み中...');
 
-fs.createReadStream(CSV_FILE)
-    .on('error', (err) => {
-        console.error('ファイル読み込みエラー:', err.message);
-    })
-    .pipe(csv({ headers: false })) // ★MIT-BIHはヘッダーがないので false に設定
-    .on('data', (row) => {
-        // 最初の500件だけを対象にする
-        if (count < 500) {
-            const rowValues = Object.values(row).map(Number);
-            const label = rowValues[rowValues.length - 1];
-            const waveformArray = rowValues.slice(0, rowValues.length - 1);
+fs.createReadStream('mitbih_train.csv')
+  .pipe(csv({ headers: false }))
+  .on('data', (data) => results.push(data))
+  .on('end', () => {
+    console.log(`CSVの読み込み完了: ${results.length} 件。クラウドDBへ送信中...`);
 
-            results.push({
-                patient_id: Math.floor(Math.random() * 50) + 1,
-                is_anomaly: (label !== 0),
-                diagnosis_type: label,
-                waveform_data: JSON.stringify(waveformArray)
-            });
-            count++;
+    connection.connect(async (err) => {
+      if (err) {
+        console.error('接続失敗:', err.message);
+        return;
+      }
+      console.log('接続成功！テーブルを作成（確認）します...');
+
+      // --- 【追加】テーブルを自動で作成するクエリ群 ---
+      const createQueries = [
+        `CREATE TABLE IF NOT EXISTS patients (
+            id BIGINT PRIMARY KEY,
+            name VARCHAR(255),
+            age INT,
+            gender VARCHAR(50)
+        )`,
+        `CREATE TABLE IF NOT EXISTS ecg_records (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            patient_id BIGINT,
+            waveform_data LONGTEXT,
+            is_anomaly BOOLEAN,
+            diagnosis_type INT,
+            doctor_comment TEXT,
+            FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE
+        )`,
+        `CREATE TABLE IF NOT EXISTS users (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            username VARCHAR(255) NOT NULL UNIQUE,
+            password VARCHAR(255) NOT NULL,
+            role VARCHAR(50)
+        )`,
+        `INSERT IGNORE INTO users (username, password, role) VALUES ('admin', 'password123', 'ADMIN')`
+      ];
+
+      // テーブル作成を順番に実行
+      for (const sql of createQueries) {
+        try {
+          await connection.promise().query(sql);
+        } catch (e) {
+          console.error('テーブル作成エラー:', e.message);
         }
-    })
-    .on('end', () => {
-        console.log(`CSVの読み込み完了: ${results.length} 件`);
+      }
 
-        if (results.length === 0) {
-            console.log('【警告】データが0件です。ファイル名や中身を確認してください。');
-            connection.end();
-            return;
-        }
+      console.log('テーブル準備完了！インポートを開始します...');
 
-        const sql = `
-            INSERT INTO ecg_records (patient_id, is_anomaly, diagnosis_type, waveform_data)
-            VALUES (?, ?, ?, ?)
-        `;
+      // --- インポート処理 ---
+      let completed = 0;
+      const targetCount = 500;
 
-        // データの挿入
-        results.forEach((record, index) => {
-            connection.query(sql, [record.patient_id, record.is_anomaly, record.diagnosis_type, record.waveform_data], (err) => {
-                if (err) console.error(`挿入エラー (Index: ${index}):`, err.sqlMessage);
-                
-                // 全件終わったら接続を閉じる
-                if (index === results.length - 1) {
-                    console.log('データベースへの挿入がすべて完了しました！');
-                    connection.end();
+      for (let i = 0; i < targetCount; i++) {
+        const row = results[i];
+        if (!row) break;
+        const values = Object.values(row).map(Number);
+        const label = values.pop();
+        const waveform = JSON.stringify(values);
+        const isAnomaly = label !== 0;
+
+        connection.query(
+          'INSERT IGNORE INTO patients (id, name, age, gender) VALUES (?, ?, ?, ?)',
+          [i + 1, `Patient_${i + 1}`, Math.floor(Math.random() * 50) + 20, i % 2 === 0 ? 'Male' : 'Female'],
+          () => {
+            connection.query(
+              'INSERT INTO ecg_records (patient_id, waveform_data, is_anomaly, diagnosis_type) VALUES (?, ?, ?, ?)',
+              [i + 1, waveform, isAnomaly, label],
+              (err) => {
+                completed++;
+                if (err) console.error(`失敗(${i}):`, err.message);
+                if (completed === targetCount) {
+                  console.log('🎉 完璧です！すべてのデータが入りました。');
+                  connection.end();
                 }
-            });
-        });
+              }
+            );
+          }
+        );
+      }
     });
+  });
