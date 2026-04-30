@@ -10,7 +10,6 @@ FROM eclipse-temurin:21-jre
 WORKDIR /app
 # ビルドした成果物（JARファイル）をコピー
 COPY --from=build /app/target/*.jar app.jar
-# ポート8080を開放
-EXPOSE 8080
+
 # 実行コマンド
 ENTRYPOINT ["java", "-jar", "app.jar"]
