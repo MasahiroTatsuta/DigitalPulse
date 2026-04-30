@@ -1,0 +1,3 @@
+spring.datasource.url=jdbc:mysql://localhost:3000/ecg_db
+spring.datasource.username=root
+spring.datasource.password=ここを自分のパスワードに書き換えてください
