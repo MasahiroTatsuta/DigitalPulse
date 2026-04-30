@@ -11,7 +11,7 @@ const handler = NextAuth({
       },
       async authorize(credentials) {
         // Spring BootのAPIに問い合わせ
-        const res = await fetch("http://localhost:8080/api/auth/login", {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`, {
           method: "POST",
           body: JSON.stringify(credentials),
           headers: { "Content-Type": "application/json" }
