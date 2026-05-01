@@ -15,7 +15,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/ecg")
-@CrossOrigin(origins = "*") // フロントエンド(Next.js)からのアクセスを許可する設定
+// @CrossOrigin(origins = "*") // フロントエンド(Next.js)からのアクセスを許可する設定
 public class EcgRecordController {
 
     @Autowired
