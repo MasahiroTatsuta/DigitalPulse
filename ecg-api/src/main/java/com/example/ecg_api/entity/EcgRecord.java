@@ -36,6 +36,7 @@ public class EcgRecord {
     @Column(name = "waveform_data", columnDefinition = "json")
     private String waveformData;
 
+    @Column(name = "doctor_comment", columnDefinition = "TEXT") // 🌟 columnDefinitionを追加
     private String doctorComment;
 
     @Column(name = "diagnosis_type")
