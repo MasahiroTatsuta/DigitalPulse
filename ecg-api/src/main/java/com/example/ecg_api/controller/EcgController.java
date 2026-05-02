@@ -1,8 +1,9 @@
-package com.example.digitalpulse.controller;
+package com.example.ecg_api.controller;
 
-import com.example.digitalpulse.dto.EcgPredictionRequest;
-import com.example.digitalpulse.dto.EcgPredictionResponse;
-import com.example.digitalpulse.service.AiInferenceService;
+import com.example.ecg_api.dto.EcgPredictionRequest;
+import com.example.ecg_api.dto.EcgPredictionResponse;
+import com.example.ecg_api.service.AiInferenceService;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;

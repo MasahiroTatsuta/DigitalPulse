@@ -1,9 +1,11 @@
-package com.example.digitalpulse.service;
+package com.example.ecg_api.service;
 
-import com.example.digitalpulse.dto.EcgPredictionRequest;
-import com.example.digitalpulse.dto.EcgPredictionResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+
+import com.example.ecg_api.dto.EcgPredictionRequest;
+import com.example.ecg_api.dto.EcgPredictionResponse;
+
 import org.springframework.beans.factory.annotation.Value;
 
 import java.util.List;

@@ -1,4 +1,4 @@
-package com.example.digitalpulse.dto;
+package com.example.ecg_api.dto;
 
 import lombok.Data;
 
