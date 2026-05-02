@@ -13,9 +13,14 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/ecg")
 public class EcgController {
 
+    private final AiInferenceService aiInferenceService;
+    private final EcgImportService ecgImportService;
+
     @Autowired
-    private AiInferenceService aiInferenceService;
-    private EcgImportService ecgImportService;
+    public EcgController(AiInferenceService aiInferenceService, EcgImportService ecgImportService) {
+        this.aiInferenceService = aiInferenceService;
+        this.ecgImportService = ecgImportService;
+    }
 
     // 🌟 [追加 ] 最新コードが反映されたか確認するためのテスト窓口
     @GetMapping("/test")
