@@ -1,4 +1,4 @@
-# DigitalPulse - Integrated ECG Analysis & AI Monitoring System
+# DigitalPulse  -  Integrated ECG Analysis & AI Monitoring System
 
 DigitalPulse は、MIT-BIH不整脈データベースを活用した、医療従事者向けの次世代心電図解析プラットフォームです。AIによる自動診断支援、高精度な波形可視化、そして臨床レポート出力機能を備え、医療現場のデジタル化を強力にサポートします。
 
