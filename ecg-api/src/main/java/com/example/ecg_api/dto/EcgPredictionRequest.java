@@ -1,7 +1,9 @@
 package com.example.ecg_api.dto;
 
 import java.util.List;
+import lombok.Data;
 
+@Data
 public class EcgPredictionRequest {
     private List<Double> waveform;
 
