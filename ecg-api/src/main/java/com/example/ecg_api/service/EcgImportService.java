@@ -1,5 +1,6 @@
 package com.example.ecg_api.service;
 
+import org.springframework.transaction.annotation.Transactional;
 import com.example.ecg_api.entity.EcgRecord;
 import com.example.ecg_api.dto.EcgPredictionResponse;
 import com.example.ecg_api.repository.EcgRecordRepository;
@@ -69,30 +70,38 @@ public class EcgImportService {
         }
     }
 
+    @Transactional
     public void processExistingRecords() throws Exception {
-        // 1. AI判定がまだ行われていない（diagnosisTypeがNULL）データをすべて取得
-        List<EcgRecord> pendingRecords = ecgRecordRepository.findAll().stream()
-            .filter(r -> r.getDiagnosisType() == null)
+        List<EcgRecord> allRecords = ecgRecordRepository.findAll();
+        
+        // 判定条件を「null または 0」に変更
+        List<EcgRecord> pendingRecords = allRecords.stream()
+            .filter(r -> r.getDiagnosisType() == null || r.getDiagnosisType() == 0)
             .toList();
 
+        System.out.println("★解析対象のデータ数: " + pendingRecords.size());
+
         for (EcgRecord record : pendingRecords) {
-            // 2. waveformData (JSON文字列) を List<Double> に戻す
+            // Waveformデータの復元
             List<Double> waveform = objectMapper.readValue(record.getWaveformData(), 
                 new TypeReference<List<Double>>() {});
 
-            // 3. AIに解析を依頼
+            // AI解析の実行[cite: 3]
             EcgPredictionResponse aiResult = aiInferenceService.predict(waveform);
 
-            // 4. 結果をセットして保存
+            // データの更新
             record.setIsAnomaly(aiResult.getIsAnomaly());
             record.setDiagnosisType(aiResult.getPredictionCode());
-            record.setDoctorComment(String.format("【AI判定: %s】\n%s", 
-                aiResult.getPredictionName(), aiResult.getGeneratedReport()));
             
+            String report = String.format("【AI判定: %s (信頼度: %s)】\n%s", 
+                aiResult.getPredictionName(), 
+                aiResult.getConfidence(), 
+                aiResult.getGeneratedReport());
+            record.setDoctorComment(report);
+
+            // 保存[cite: 1]
             ecgRecordRepository.save(record);
-            
-            // OpenAIの負荷を考え、1件ごとに少し待機（任意）
-            Thread.sleep(500); 
+            System.out.println("✅ ID: " + record.getId() + " の解析を保存しました");
         }
     }
 }
