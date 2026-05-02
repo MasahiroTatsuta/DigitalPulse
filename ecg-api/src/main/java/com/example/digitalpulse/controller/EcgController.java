@@ -9,7 +9,6 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/ecg")
-@CrossOrigin(origins = {"http://localhost:3000", "https://digital-pulse-psi.vercel.app"})
 public class EcgController {
 
     @Autowired
