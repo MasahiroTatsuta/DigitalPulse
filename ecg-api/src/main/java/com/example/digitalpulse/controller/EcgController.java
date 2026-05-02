@@ -14,7 +14,7 @@ public class EcgController {
     @Autowired
     private AiInferenceService aiInferenceService;
 
-    // 🌟 [追加] 最新コードが反映されたか確認するためのテスト窓口
+    // 🌟 [追加 ] 最新コードが反映されたか確認するためのテスト窓口
     @GetMapping("/test")
     public String test() {
         return "最新のコードが正常に動いています！";
