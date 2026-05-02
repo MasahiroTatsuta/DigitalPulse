@@ -53,4 +53,14 @@ public class EcgController {
             return ResponseEntity.internalServerError().body("エラー: " + e.getMessage());
         }
     }
+
+    @PostMapping("/sync-ai")
+    public ResponseEntity<String> syncAi() {
+        try {
+            ecgImportService.processExistingRecords();
+            return ResponseEntity.ok("既存データのAI解析が完了しました！");
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("エラー: " + e.getMessage());
+        }
+    }
 }

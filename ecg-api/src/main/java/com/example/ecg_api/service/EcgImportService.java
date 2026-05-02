@@ -4,6 +4,7 @@ import com.example.ecg_api.entity.EcgRecord;
 import com.example.ecg_api.dto.EcgPredictionResponse;
 import com.example.ecg_api.repository.EcgRecordRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
@@ -65,6 +66,33 @@ public class EcgImportService {
                 // 4. DBに保存
                 ecgRecordRepository.save(record);
             }
+        }
+    }
+
+    public void processExistingRecords() throws Exception {
+        // 1. AI判定がまだ行われていない（diagnosisTypeがNULL）データをすべて取得
+        List<EcgRecord> pendingRecords = ecgRecordRepository.findAll().stream()
+            .filter(r -> r.getDiagnosisType() == null)
+            .toList();
+
+        for (EcgRecord record : pendingRecords) {
+            // 2. waveformData (JSON文字列) を List<Double> に戻す
+            List<Double> waveform = objectMapper.readValue(record.getWaveformData(), 
+                new TypeReference<List<Double>>() {});
+
+            // 3. AIに解析を依頼
+            EcgPredictionResponse aiResult = aiInferenceService.predict(waveform);
+
+            // 4. 結果をセットして保存
+            record.setIsAnomaly(aiResult.getIsAnomaly());
+            record.setDiagnosisType(aiResult.getPredictionCode());
+            record.setDoctorComment(String.format("【AI判定: %s】\n%s", 
+                aiResult.getPredictionName(), aiResult.getGeneratedReport()));
+            
+            ecgRecordRepository.save(record);
+            
+            // OpenAIの負荷を考え、1件ごとに少し待機（任意）
+            Thread.sleep(500); 
         }
     }
 }
