@@ -57,8 +57,9 @@ public class EcgController {
     @PostMapping("/sync-ai")
     public ResponseEntity<String> syncAi() {
         try {
-            ecgImportService.processExistingRecords();
-            return ResponseEntity.ok("既存データのAI解析が完了しました！");
+            ecgImportService.processExistingRecords(); 
+            // 🌟 ここでメソッドを呼んでも、@Asyncのおかげですぐに次の行へ進みます
+            return ResponseEntity.accepted().body("AI解析をバックグラウンドで開始しました。完了までしばらくお待ちください。");
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("エラー: " + e.getMessage());
         }
