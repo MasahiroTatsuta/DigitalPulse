@@ -19,6 +19,7 @@ import java.io.InputStreamReader;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Comparator;
 
 @Service
 public class EcgImportService {
@@ -74,36 +75,34 @@ public class EcgImportService {
     @Async
     @Transactional
     public void processExistingRecords() throws Exception {
-        List<EcgRecord> allRecords = ecgRecordRepository.findAll();
-        
-        // 判定条件を「null または 0」に変更
-        List<EcgRecord> pendingRecords = allRecords.stream()
-            .filter(r -> r.getDiagnosisType() == null || r.getDiagnosisType() == 0)
+        // 1. 「コメントがまだ無い」データを、IDの古い順（ASC）に取得し、さらに「先頭50件」に絞る
+        // これなら30秒以内で確実に終わりますし、何度も実行すれば全部埋まります。
+        List<EcgRecord> pendingRecords = ecgRecordRepository.findAll().stream()
+            .filter(r -> r.getDoctorComment() == null || r.getDoctorComment().isEmpty())
+            .sorted(Comparator.comparing(EcgRecord::getId)) // ID順に並べる
+            .limit(50) // 🌟 一回のリクエストで50件ずつ攻める（安全策）
             .toList();
 
-        System.out.println("★解析対象のデータ数: " + pendingRecords.size());
+        System.out.println("★今回の解析対象（残り分から先頭50件）: " + pendingRecords.size());
 
         for (EcgRecord record : pendingRecords) {
-            // Waveformデータの復元
-            List<Double> waveform = objectMapper.readValue(record.getWaveformData(), 
-                new TypeReference<List<Double>>() {});
+            try {
+                List<Double> waveform = objectMapper.readValue(record.getWaveformData(), 
+                    new TypeReference<List<Double>>() {});
 
-            // AI解析の実行[cite: 3]
-            EcgPredictionResponse aiResult = aiInferenceService.predict(waveform);
+                EcgPredictionResponse aiResult = aiInferenceService.predict(waveform);
 
-            // データの更新
-            record.setIsAnomaly(aiResult.getIsAnomaly());
-            record.setDiagnosisType(aiResult.getPredictionCode());
-            
-            String report = String.format("【AI判定: %s (信頼度: %s)】\n%s", 
-                aiResult.getPredictionName(), 
-                aiResult.getConfidence(), 
-                aiResult.getGeneratedReport());
-            record.setDoctorComment(report);
-
-            // 保存[cite: 1]
-            ecgRecordRepository.save(record);
-            System.out.println("✅ ID: " + record.getId() + " の解析を保存しました");
+                record.setIsAnomaly(aiResult.getIsAnomaly());
+                record.setDiagnosisType(aiResult.getPredictionCode());
+                record.setDoctorComment(String.format("【AI判定: %s】\n%s", 
+                    aiResult.getPredictionName(), aiResult.getGeneratedReport()));
+                
+                ecgRecordRepository.save(record);
+                System.out.println("✅ ID: " + record.getId() + " を更新しました");
+            } catch (Exception e) {
+                System.err.println("❌ ID: " + record.getId() + " でエラー発生: " + e.getMessage());
+            }
         }
+        System.out.println("🏁 今回の50件のバッチ処理が完了しました！");
     }
 }
