@@ -47,3 +47,10 @@ Thumbs.db
 # 巨大なCSVデータはリポジトリを重くするため、基本はあげない
 *.csv
 # もしCSVを含めたい場合は、上記の行を消すか、個別に許可する
+
+ecg-ai/venv/
+.venv/
+venv/
+*.pyc
+__pycache__/
+target/
