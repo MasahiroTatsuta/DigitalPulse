@@ -81,9 +81,9 @@ export default function RecordDetailPage() {
     const opt = {
       margin: 10,
       filename: `ECG_Report_#${recordId}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
+      image: { type: 'jpeg' as const, quality: 0.98 }, // 🌟 'as const' を追加
       html2canvas: { scale: 2 },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      jsPDF: { unit: 'mm' as const, format: 'a4' as const, orientation: 'portrait' as const } // 🌟 念のため他の文字にも追加
     };
     await html2pdf().set(opt).from(reportRef.current).save();
   };
