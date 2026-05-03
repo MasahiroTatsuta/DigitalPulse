@@ -22,7 +22,7 @@ const getDiagnosisName = (type: number | undefined) => {
 type Patient = { id: number; name: string; age: number; gender: string };
 type EcgRecord = { 
   id: number; 
-  patient: Patient; 
+  patient: Patient | null; // 🌟 患者情報が null の可能性を考慮
   isAnomaly: boolean; 
   waveformData: string; 
   doctorComment?: string; 
@@ -81,9 +81,9 @@ export default function RecordDetailPage() {
     const opt = {
       margin: 10,
       filename: `ECG_Report_#${recordId}.pdf`,
-      image: { type: 'jpeg' as const, quality: 0.98 }, // 🌟 'as const' を追加
+      image: { type: 'jpeg' as const, quality: 0.98 },
       html2canvas: { scale: 2 },
-      jsPDF: { unit: 'mm' as const, format: 'a4' as const, orientation: 'portrait' as const } // 🌟 念のため他の文字にも追加
+      jsPDF: { unit: 'mm' as const, format: 'a4' as const, orientation: 'portrait' as const }
     };
     await html2pdf().set(opt).from(reportRef.current).save();
   };
@@ -142,26 +142,32 @@ export default function RecordDetailPage() {
             </div>
           </div>
 
-          {/* 患者情報 */}
+          {/* 患者情報 (🌟 patientがnullでも壊れないように修正) */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="flex items-center gap-5">
               <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center text-2xl font-black text-blue-600">
-                {data?.patient.name.charAt(0)}
+                {data?.patient?.name ? data.patient.name.charAt(0) : "?"}
               </div>
               <div>
                 <p className="text-[10px] font-bold text-gray-400 uppercase">Patient Name</p>
-                <h2 className="text-xl font-bold text-gray-800">{data?.patient.name}</h2>
-                <p className="text-xs font-mono text-gray-500">PT-{data?.patient.id.toString().padStart(4, '0')}</p>
+                <h2 className="text-xl font-bold text-gray-800">
+                  {data?.patient?.name || "未登録の患者"}
+                </h2>
+                <p className="text-xs font-mono text-gray-500">
+                  {data?.patient?.id 
+                    ? `PT-${data.patient.id.toString().padStart(4, '0')}` 
+                    : "ID: ----"}
+                </p>
               </div>
             </div>
             <div className="flex gap-10 md:justify-end">
               <div>
                 <p className="text-[10px] font-bold text-gray-400 uppercase">Age</p>
-                <p className="font-bold text-gray-700">{data?.patient.age} y/o</p>
+                <p className="font-bold text-gray-700">{data?.patient?.age ?? "--"} y/o</p>
               </div>
               <div>
                 <p className="text-[10px] font-bold text-gray-400 uppercase">Gender</p>
-                <p className="font-bold text-gray-700">{data?.patient.gender}</p>
+                <p className="font-bold text-gray-700">{data?.patient?.gender || "不明"}</p>
               </div>
             </div>
           </div>
