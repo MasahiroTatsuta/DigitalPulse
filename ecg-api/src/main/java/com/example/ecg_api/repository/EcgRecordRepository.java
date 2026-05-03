@@ -9,6 +9,8 @@ import java.util.List;
 
 @Repository
 public interface EcgRecordRepository extends JpaRepository<EcgRecord, Integer> {
+    List<EcgRecord> findAllByOrderByIdDesc();
+    
     // 患者IDと異常フラグで検索するメソッド（部分一致やNULL対応も考慮）
     @Query("SELECT e FROM EcgRecord e WHERE " +
        "(:patientId IS NULL OR e.patient.id = :patientId) AND " + // ← ここを修正
