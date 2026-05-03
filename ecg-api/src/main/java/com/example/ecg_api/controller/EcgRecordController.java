@@ -21,6 +21,12 @@ public class EcgRecordController {
     @Autowired
     private EcgRecordRepository repository;
 
+    @GetMapping("/all")
+    public List<EcgRecord> getAllEcgRecords() {
+        // IDの新しい順（降順）ですべて取得する
+        return repository.findAll(); 
+    }
+
     // 一覧データを100件取得するAPI (http://localhost:8080/api/ecg/summary)
     @GetMapping("/summary")
     public List<EcgRecord> getEcgSummary() {

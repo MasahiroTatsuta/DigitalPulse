@@ -25,12 +25,15 @@ export default function DashboardPage() {
   const fetchRecords = async () => {
     setLoading(true);
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "https://ecg-backend-api.onrender.com";
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL;
       
-      // 検索IDがある場合はsearch、ない場合はallを叩く
-      let url = searchId 
-        ? `${baseUrl}/api/ecg/search?patientId=${searchId}${onlyAnomaly ? "&isAnomaly=true" : ""}`
-        : `${baseUrl}/api/ecg/all`;
+      // 🌟 修正：検索IDが空なら /all、あるなら /search を呼ぶ
+      let url = "";
+      if (searchId) {
+        url = `${baseUrl}/api/ecg/search?patientId=${searchId}${onlyAnomaly ? "&isAnomaly=true" : ""}`;
+      } else {
+        url = `${baseUrl}/api/ecg/all`; // 新しく作ったエンドポイント
+      }
 
       const res = await fetch(url, {
         method: "GET",
