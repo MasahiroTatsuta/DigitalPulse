@@ -2,9 +2,23 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Brush } from "recharts";
+import { 
+  LineChart, Line, XAxis, YAxis, CartesianGrid, 
+  Tooltip, ResponsiveContainer, AreaChart, Area 
+} from "recharts";
 
-// 型定義
+// 診断名定義
+const getDiagnosisName = (type: number | undefined) => {
+  const names: { [key: number]: string } = { 
+    0: "正常 (Normal Sinus Rhythm)", 
+    1: "上室性期外収縮 (SVEB)", 
+    2: "心室性期外収縮 (VEB)", 
+    3: "心室融合不整脈 (Fusion Beat)", 
+    4: "分類不能な不整脈 (Unknown/Q)" 
+  };
+  return names[type ?? 0] || "解析不能な波形";
+};
+
 type Patient = { id: number; name: string; age: number; gender: string };
 type EcgRecord = { 
   id: number; 
@@ -13,18 +27,6 @@ type EcgRecord = {
   waveformData: string; 
   doctorComment?: string; 
   diagnosisType?: number; 
-};
-
-// 診断名
-const getDiagnosisName = (type: number | undefined) => {
-  const names: { [key: number]: string } = { 
-    0: "正常 (Normal)", 
-    1: "上室性期外収縮 (SVEB)", 
-    2: "心室性期外収縮 (VEB)", 
-    3: "心室融合不整脈 (F)", 
-    4: "分類不能な不整脈 (Q)" 
-  };
-  return names[type ?? 0] || "不明な波形";
 };
 
 export default function RecordDetailPage() {
@@ -36,233 +38,212 @@ export default function RecordDetailPage() {
   const [loading, setLoading] = useState(true);
 
   const reportRef = useRef<HTMLDivElement>(null);
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || "https://ecg-backend-api.onrender.com";
 
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL;
-
-  // 🔥 データ取得
   useEffect(() => {
     const fetchData = async () => {
       try {
-        if (!baseUrl) {
-          console.error("❌ API URL undefined");
-          return;
-        }
-
-        const url = `${baseUrl}/api/ecg/${recordId}`;
-        console.log("🔍 fetch:", url);
-
-        const res = await fetch(url, {
+        const res = await fetch(`${baseUrl}/api/ecg/${recordId}`, {
           method: "GET",
           credentials: "include",
         });
 
-        console.log("status:", res.status);
-
-        if (!res.ok) {
-          const text = await res.text();
-          console.error("API error:", text);
-          return;
-        }
-
+        if (!res.ok) throw new Error("Fetch failed");
         const d = await res.json();
+        
         setData(d);
+        // AIが生成したレポートを初期値としてセット
         setComment(d.doctorComment || "");
 
+        // 波形データのパースとトリミング
         const rawWaveform: number[] = JSON.parse(d.waveformData);
-
         let lastIndex = rawWaveform.length - 1;
-        while (lastIndex >= 0 && rawWaveform[lastIndex] === 0) {
-          lastIndex--;
-        }
-
-        const trimmedData = rawWaveform.slice(0, lastIndex + 2);
-
-        const waveform = trimmedData.map((v: number, i: number) => ({
+        while (lastIndex >= 0 && rawWaveform[lastIndex] === 0) lastIndex--;
+        
+        const waveform = rawWaveform.slice(0, lastIndex + 2).map((v, i) => ({
           time: i,
           voltage: v,
         }));
-
         setChartData(waveform);
 
       } catch (err) {
-        console.error("❌ fetch error:", err);
+        console.error("❌ Data load error:", err);
       } finally {
         setLoading(false);
       }
     };
-
     fetchData();
   }, [recordId, baseUrl]);
 
-  // 🔥 PDF
   const exportPDF = async () => {
     const html2pdf = (await import("html2pdf.js")).default;
     if (!reportRef.current) return;
-
-    await html2pdf().from(reportRef.current).save();
+    const opt = {
+      margin: 10,
+      filename: `ECG_Report_#${recordId}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2 },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+    await html2pdf().set(opt).from(reportRef.current).save();
   };
 
-  // 🔥 コメント保存
   const saveComment = async () => {
     try {
-      if (!baseUrl) return;
-
-      const url = `${baseUrl}/api/ecg/${recordId}/comment`;
-
-      const res = await fetch(url, {
+      const res = await fetch(`${baseUrl}/api/ecg/${recordId}/comment`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: comment,
       });
-
-      console.log("save status:", res.status);
-
-      if (res.ok) {
-        alert("保存しました");
-      } else {
-        const text = await res.text();
-        console.error("save error:", text);
-      }
-
+      if (res.ok) alert("診断メモを更新しました");
     } catch (err) {
-      console.error("❌ save error:", err);
+      alert("保存に失敗しました");
     }
   };
 
-  if (loading) return <div className="p-10 text-center font-bold text-gray-500">データを読み込み中...</div>;
+  if (loading) return (
+    <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full"></div>
+    </div>
+  );
 
   return (
-    <main className={`p-4 sm:p-10 min-h-screen ${data?.isAnomaly ? "bg-red-50" : "bg-gray-50"}`}>
+    <main className="p-4 sm:p-10 bg-gray-50 min-h-screen font-sans">
       
-      {/* 操作バー (PDFには含まない) */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+      {/* ナビゲーション */}
+      <div className="flex justify-between items-center mb-8 no-print">
         <button 
           onClick={() => router.push('/')} 
-          className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded font-bold shadow-sm transition-all"
+          className="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-blue-600 transition-all"
         >
-          ◀ 一覧に戻る
+          ← Dashboard
         </button>
-
         <button 
           onClick={exportPDF} 
-          className="flex items-center gap-2 px-6 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-lg font-bold shadow-lg transition-all active:scale-95"
+          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-full font-bold shadow-lg transition-all active:scale-95 flex items-center gap-2"
         >
-          📄 レポートをPDF出力
+          📄 PDF Report
         </button>
       </div>
 
-      {/* --- ↓ PDF出力エリア ↓ --- */}
-      <div ref={reportRef} style={{ backgroundColor: 'transparent' }}>
+      <div ref={reportRef} className="max-w-4xl mx-auto space-y-6">
         
-        {/* レポートヘッダー (PDFで映える) */}
-        <div className="mb-6 p-4 border-b-2" style={{ borderColor: '#374151', backgroundColor: '#ffffff' }}>
-           <h1 className="text-2xl font-black" style={{ color: '#111827' }}>ECG CLINICAL REPORT</h1>
-           <p className="text-xs" style={{ color: '#6b7280' }}>Issue Date: {new Date().toLocaleString()}</p>
+        {/* レポートヘッダー */}
+        <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
+          <div className="flex justify-between items-start mb-8 border-b pb-6">
+            <div>
+              <h1 className="text-3xl font-black text-gray-900 tracking-tighter">DigitalPulse <span className="text-blue-600">AI</span></h1>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">Clinical Analysis Report</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs font-mono text-gray-400">REPORT_ID: #{data?.id}</p>
+              <p className="text-xs text-gray-500">{new Date().toLocaleDateString('ja-JP')}</p>
+            </div>
+          </div>
+
+          {/* 患者情報 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="flex items-center gap-5">
+              <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center text-2xl font-black text-blue-600">
+                {data?.patient.name.charAt(0)}
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase">Patient Name</p>
+                <h2 className="text-xl font-bold text-gray-800">{data?.patient.name}</h2>
+                <p className="text-xs font-mono text-gray-500">PT-{data?.patient.id.toString().padStart(4, '0')}</p>
+              </div>
+            </div>
+            <div className="flex gap-10 md:justify-end">
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase">Age</p>
+                <p className="font-bold text-gray-700">{data?.patient.age} y/o</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase">Gender</p>
+                <p className="font-bold text-gray-700">{data?.patient.gender}</p>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* 患者情報カード */}
-        <div className="p-6 rounded-xl border mb-6 flex flex-col md:flex-row gap-6 items-center" 
-             style={{ backgroundColor: '#ffffff', borderColor: '#e5e7eb' }}>
-          <div className="flex items-center gap-4 w-full md:w-auto border-b md:border-b-0 pb-4 md:pb-0">
-            <div className="w-14 h-14 rounded-full flex items-center justify-center font-bold text-2xl text-white flex-shrink-0" 
-                 style={{ backgroundColor: '#2563eb' }}>
-              {data?.patient.name.charAt(0)}
-            </div>
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#9ca3af' }}>Patient Name</p>
-              <p className="text-xl font-black" style={{ color: '#111827' }}>{data?.patient.name}</p>
-            </div>
+        {/* AI診断サマリー */}
+        <div className={`p-8 rounded-2xl border-l-[12px] shadow-sm flex flex-col sm:flex-row justify-between items-center gap-6 bg-white ${data?.isAnomaly ? 'border-red-500' : 'border-green-500'}`}>
+          <div>
+            <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">AI Diagnostic Result</h3>
+            <p className="text-2xl font-black text-gray-800">{getDiagnosisName(data?.diagnosisType)}</p>
           </div>
-          
-          <div className="grid grid-cols-3 gap-4 sm:gap-12 w-full">
-            <div>
-              <p className="text-[10px] font-bold uppercase" style={{ color: '#9ca3af' }}>Patient ID</p>
-              <p className="font-mono font-bold" style={{ color: '#374151' }}>PT-{data?.patient.id.toString().padStart(4, '0')}</p>
-            </div>
-            <div>
-              <p className="text-[10px] font-bold uppercase" style={{ color: '#9ca3af' }}>Age / Gender</p>
-              <p className="font-bold" style={{ color: '#374151' }}>{data?.patient.age}y / {data?.patient.gender}</p>
-            </div>
-            <div>
-              <p className="text-[10px] font-bold uppercase" style={{ color: '#9ca3af' }}>Record ID</p>
-              <p className="font-bold" style={{ color: '#374151' }}>#{data?.id}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* 診断結果ラベル */}
-        <div className="p-6 mb-6 rounded-xl border-l-8 flex flex-col sm:flex-row justify-between items-center gap-4" 
-             style={{ 
-               backgroundColor: '#ffffff', 
-               borderColor: data?.isAnomaly ? '#ef4444' : '#22c55e',
-               borderLeftWidth: '8px',
-               borderLeftStyle: 'solid'
-             }}>
-          <div className="text-center sm:text-left">
-            <h2 className="font-bold uppercase text-[10px] tracking-widest" style={{ color: '#9ca3af' }}>AI Diagnosis</h2>
-            <p className="text-2xl font-black" style={{ color: '#111827' }}>{getDiagnosisName(data?.diagnosisType)}</p>
-          </div>
-          <div className="px-8 py-3 rounded-lg font-black text-3xl" 
-               style={{ 
-                 backgroundColor: data?.isAnomaly ? '#fef2f2' : '#f0fdf4', 
-                 color: data?.isAnomaly ? '#dc2626' : '#16a34a' 
-               }}>
+          <div className={`px-10 py-4 rounded-xl text-4xl font-black italic tracking-tighter ${data?.isAnomaly ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
             {data?.isAnomaly ? 'POSITIVE' : 'NEGATIVE'}
           </div>
         </div>
 
-        {/* グラフエリア */}
-        <div className="p-4 rounded-xl border mb-6" style={{ backgroundColor: '#ffffff', borderColor: '#e5e7eb' }}>
-          <h3 className="text-[10px] font-bold mb-4 uppercase tracking-widest" style={{ color: '#9ca3af' }}>Waveform Analysis</h3>
-          <div className="h-[350px] w-full">
+        {/* 波形グラフ */}
+        <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Waveform Visualizer</h3>
+            <span className="text-[10px] font-bold px-2 py-1 bg-gray-100 text-gray-500 rounded">Lead II Standard</span>
+          </div>
+          <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="colorVolt" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={data?.isAnomaly ? "#ef4444" : "#3b82f6"} stopOpacity={0.1}/>
+                    <stop offset="95%" stopColor={data?.isAnomaly ? "#ef4444" : "#3b82f6"} stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="time" hide />
-                <YAxis domain={['auto', 'auto']} stroke="#ccc" fontSize={10} />
-                <Tooltip />
-                <Line 
+                <YAxis domain={['auto', 'auto']} stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
+                <Tooltip 
+                   contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                   labelStyle={{ display: 'none' }}
+                />
+                <Area 
                   type="monotone" 
                   dataKey="voltage" 
-                  stroke={data?.isAnomaly ? "#ef4444" : "#2563eb"} 
-                  strokeWidth={2.5} 
-                  dot={false} 
-                  isAnimationActive={false} 
+                  stroke={data?.isAnomaly ? "#ef4444" : "#3b82f6"} 
+                  strokeWidth={3}
+                  fillOpacity={1} 
+                  fill="url(#colorVolt)"
+                  isAnimationActive={false}
                 />
-              </LineChart>
+              </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* 診断メモ表示エリア (PDF用) */}
-        <div className="p-6 rounded-xl border" style={{ backgroundColor: '#ffffff', borderColor: '#e5e7eb' }}>
-          <h3 className="font-bold mb-4 flex items-center gap-2" style={{ color: '#374151' }}>
-            🩺 Clinical Notes
-          </h3>
-          <div className="p-5 rounded-lg border text-sm leading-relaxed min-h-[120px] whitespace-pre-wrap" 
-               style={{ backgroundColor: '#f9fafb', borderColor: '#e5e7eb', color: '#1f2937' }}>
-            {comment || "No notes provided."}
+        {/* 診断レポート（AI生成メッセージ） */}
+        <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
+          <div className="flex items-center gap-2 mb-6">
+            <div className="w-2 h-6 bg-blue-600 rounded-full"></div>
+            <h3 className="font-black text-gray-800 uppercase tracking-tight">AI Generated Clinical Report</h3>
+          </div>
+          <div className="p-6 bg-blue-50/50 rounded-2xl border border-blue-100 text-sm leading-relaxed text-gray-700 whitespace-pre-wrap font-medium">
+            {comment || "解析データがありません。"}
           </div>
         </div>
       </div>
-      {/* --- ↑ PDF出力エリア終了 ↑ --- */}
 
-      {/* 編集フォーム (PDFには含めない) */}
-      <div className="mt-10 p-6 bg-white rounded-xl border border-gray-300 shadow-inner">
-        <label className="block text-sm font-bold text-gray-500 mb-3 uppercase tracking-wider">診断メモを編集</label>
+      {/* 編集エリア (no-print) */}
+      <div className="max-w-4xl mx-auto mt-12 p-8 bg-slate-800 rounded-3xl shadow-2xl no-print">
+        <div className="flex items-center justify-between mb-4">
+          <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">医師による修正・追記</label>
+          <span className="text-[10px] text-slate-500">※保存するとAIレポートが更新されます</span>
+        </div>
         <textarea 
-          className="w-full h-32 p-4 border-2 border-gray-200 rounded-lg outline-none focus:border-blue-500 transition-all text-gray-800" 
+          className="w-full h-40 p-6 bg-slate-900 border-none rounded-2xl text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none" 
           value={comment} 
           onChange={(e) => setComment(e.target.value)} 
-          placeholder="医師の所見を入力してください..." 
+          placeholder="所見を記入してください..." 
         />
-        <div className="text-right mt-4">
+        <div className="flex justify-end mt-6">
           <button 
             onClick={saveComment} 
-            className="bg-green-600 hover:bg-green-700 text-white px-10 py-3 rounded-lg font-black shadow-md transition-all active:scale-95"
+            className="bg-blue-500 hover:bg-blue-400 text-white px-12 py-4 rounded-xl font-black shadow-lg transition-all active:scale-95"
           >
-            保存する
+            Update Report
           </button>
         </div>
       </div>
