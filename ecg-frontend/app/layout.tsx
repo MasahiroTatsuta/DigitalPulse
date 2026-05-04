@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 // NextAuthProviderをインポート（パスが異なる場合は適宜調整してください）
 import NextAuthProvider from "@/components/NextAuthProvider";
+import Sidebar from "@/components/Sidebar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,6 +36,21 @@ export default function RootLayout({
         <NextAuthProvider>
           {children}
         </NextAuthProvider>
+      </body>
+    </html>
+  );
+}
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="ja">
+      <body>
+        <div className="flex">
+          <Sidebar />
+          <div className="flex-1 ml-64 min-h-screen bg-gray-50">
+            {children}
+          </div>
+        </div>
       </body>
     </html>
   );

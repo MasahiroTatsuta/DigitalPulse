@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
-import { signOut } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
 
 type Patient = { id: number; name: string };
@@ -40,7 +39,13 @@ export default function DashboardPage() {
 
       if (!res.ok) throw new Error("Fetch failed");
       const data = await res.json();
-      setRecords(data);
+      
+      // searchIdがない時のフロントエンド側異常フィルタリング
+      const filteredData = (!searchId && onlyAnomaly) 
+        ? data.filter((r: EcgRecord) => r.isAnomaly) 
+        : data;
+        
+      setRecords(filteredData);
     } catch (err) {
       console.error("❌ Fetch error:", err);
       setRecords([]);
@@ -72,7 +77,7 @@ export default function DashboardPage() {
         alert(`${targetPatientId ? `患者ID: ${targetPatientId} として` : ""}インポート完了`);
         fetchRecords();
       } else {
-        alert("アップロード失敗");
+        alert("アップロードに失敗しました");
       }
     } catch (err) {
       console.error(err);
@@ -87,76 +92,120 @@ export default function DashboardPage() {
     fetchRecords();
   }, [onlyAnomaly]);
 
+  // 🌟 統計データの計算
+  const stats = {
+    total: records.length,
+    anomalies: records.filter(r => r.isAnomaly).length,
+    pending: records.filter(r => !r.doctorComment || r.doctorComment.trim() === "").length
+  };
+
   return (
-    <main className="p-4 sm:p-10 bg-gray-50 min-h-screen">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl font-bold text-gray-800 border-b-4 border-blue-500 pb-1">DigitalPulse Dashboard</h1>
-        <button onClick={() => signOut()} className="text-sm font-bold text-gray-500 hover:text-red-500">Sign Out ➔</button>
+    <main className="p-6 sm:p-10">
+      
+      {/* ヘッダー */}
+      <header className="mb-10">
+        <h1 className="text-3xl font-black text-slate-900 tracking-tighter">Analytics Overview</h1>
+        <p className="text-slate-500 font-bold mt-1 text-sm">システム全体の解析状況と最新の検査結果</p>
+      </header>
+
+      {/* 🌟 統計カードセクション */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Records</p>
+          <p className="text-4xl font-black text-slate-900">{stats.total}</p>
+          <div className="mt-2 text-xs text-blue-600 font-bold">全患者の総データ数</div>
+        </div>
+        
+        <div className={`bg-white p-6 rounded-3xl border shadow-sm transition-all ${stats.anomalies > 0 ? 'border-red-100 ring-4 ring-red-50' : 'border-slate-100'}`}>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Anomalies Detected</p>
+          <p className={`text-4xl font-black ${stats.anomalies > 0 ? 'text-red-600' : 'text-slate-900'}`}>{stats.anomalies}</p>
+          <div className="mt-2 text-xs text-red-500 font-bold">要確認の異常波形</div>
+        </div>
+
+        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Pending Analysis</p>
+          <p className="text-4xl font-black text-slate-900">{stats.pending}</p>
+          <div className="mt-2 text-xs text-amber-500 font-bold">AI解析待ち / レポート未作成</div>
+        </div>
       </div>
 
+      {/* アクションパネル (検索 + インポート) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col md:flex-row md:items-end gap-6">
+        <div className="lg:col-span-2 bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col md:flex-row md:items-end gap-6">
           <div className="flex flex-col gap-2 flex-1">
-            <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Patient ID Search</label>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Patient ID Search</label>
             <div className="flex gap-2">
               <input
                 type="number"
                 value={searchId}
                 onChange={(e) => setSearchId(e.target.value)}
-                className="flex-1 border-2 border-gray-100 rounded-lg px-4 py-2 focus:border-blue-500 outline-none"
+                className="flex-1 border-2 border-slate-50 bg-slate-50 rounded-xl px-4 py-2 focus:bg-white focus:border-blue-500 outline-none transition-all"
                 placeholder="Ex: 25"
               />
-              <button onClick={fetchRecords} className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold">検索</button>
+              <button onClick={fetchRecords} className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-md">検索</button>
             </div>
           </div>
           <div className="flex items-center gap-3 py-2 cursor-pointer select-none" onClick={() => setOnlyAnomaly(!onlyAnomaly)}>
-            <div className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors ${onlyAnomaly ? "bg-red-500" : "bg-gray-300"}`}>
+            <div className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors ${onlyAnomaly ? "bg-red-500" : "bg-slate-200"}`}>
               <div className={`bg-white w-4 h-4 rounded-full shadow transition-transform ${onlyAnomaly ? "translate-x-6" : ""}`} />
             </div>
-            <span className="font-bold text-gray-700 text-sm">異常のみ表示</span>
+            <span className="font-bold text-slate-700 text-sm">異常のみ表示</span>
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-dashed border-blue-300 flex flex-col justify-center gap-3">
-          <p className="text-xs font-bold text-blue-400 uppercase text-center">Bulk Import with Patient ID</p>
+        <div className="bg-white p-6 rounded-3xl shadow-sm border border-dashed border-blue-200 flex flex-col justify-center gap-3">
+          <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest text-center">Bulk Import</p>
           <input 
             type="number"
-            placeholder="紐付ける患者IDを入力"
+            placeholder="紐付ける患者IDを入力 (任意)"
             value={targetPatientId}
             onChange={(e) => setTargetPatientId(e.target.value)}
-            className="w-full border border-blue-100 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-blue-400 outline-none"
+            className="w-full border-2 border-slate-50 bg-slate-50 rounded-xl px-3 py-2 text-xs focus:bg-white focus:border-blue-400 outline-none transition-all"
           />
           <input type="file" accept=".csv" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
           <button 
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
-            className={`w-full py-3 rounded-lg font-black text-xs uppercase shadow-lg ${isUploading ? 'bg-gray-400' : 'bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white ring-2 ring-blue-600'}`}
+            className={`w-full py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-sm ${isUploading ? 'bg-slate-200 text-slate-400' : 'bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white'}`}
           >
-            {isUploading ? "Uploading..." : "CSVを選択して登録"}
+            {isUploading ? "Uploading..." : "CSVファイルを選択"}
           </button>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-md overflow-x-auto border border-gray-100">
+      {/* データテーブル */}
+      <div className="bg-white rounded-3xl shadow-sm overflow-x-auto border border-slate-100">
         <table className="w-full text-left border-collapse min-w-[800px]">
-          <thead className="bg-gray-50 text-gray-400 uppercase text-[10px] tracking-widest">
-            <tr><th className="p-4">ID</th><th className="p-4">Patient</th><th className="p-4">Status</th><th className="p-4">AI Doctor's Summary</th><th className="p-4 text-center">Action</th></tr>
+          <thead className="bg-slate-50 text-slate-400 uppercase text-[10px] tracking-widest">
+            <tr>
+              <th className="p-5 rounded-tl-3xl">ID</th>
+              <th className="p-5">Patient</th>
+              <th className="p-5">Status</th>
+              <th className="p-5">AI Doctor's Summary</th>
+              <th className="p-5 text-center rounded-tr-3xl">Action</th>
+            </tr>
           </thead>
-          <tbody className="text-gray-700">
+          <tbody className="text-slate-700">
             <AnimatePresence>
               {records.map((r) => (
-                <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }} key={r.id} className="border-b border-gray-50 hover:bg-blue-50/50">
-                  <td className="p-4 font-bold text-gray-400">#{r.id}</td>
-                  <td className="p-4 font-black">{r.patient ? `PT-${r.patient.id.toString().padStart(4, "0")}` : "GUEST"}</td>
-                  <td className="p-4">
+                <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }} key={r.id} className="border-b border-slate-50 hover:bg-blue-50/50 transition-colors">
+                  <td className="p-5 font-bold text-slate-400">#{r.id}</td>
+                  <td className="p-5 font-black">{r.patient ? `PT-${r.patient.id.toString().padStart(4, "0")}` : "GUEST"}</td>
+                  <td className="p-5">
                     <span className={`px-3 py-1 rounded-full text-[10px] font-black ${r.isAnomaly ? "bg-red-100 text-red-600" : "bg-green-100 text-green-600"}`}>
                       {r.isAnomaly ? "ANOMALY" : "NORMAL"}
                     </span>
                   </td>
-                  <td className="p-4"><div className="max-w-md"><p className="text-xs text-gray-600 line-clamp-2 italic">{r.doctorComment || "解析待ち..."}</p></div></td>
-                  <td className="p-4 text-center">
+                  <td className="p-5">
+                    <div className="max-w-md">
+                      <p className="text-xs text-slate-600 line-clamp-2 italic font-medium">
+                        {r.doctorComment || "⚠️ 解析待ち..."}
+                      </p>
+                    </div>
+                  </td>
+                  <td className="p-5 text-center">
                     <Link href={`/records/${r.id}`}>
-                      <button className="bg-gray-800 text-white px-5 py-2 rounded-lg text-xs font-bold hover:bg-black">VIEW REPORT ➔</button>
+                      <button className="bg-slate-800 text-white px-5 py-2 rounded-xl text-[10px] font-bold tracking-widest uppercase hover:bg-blue-600 transition-all shadow-sm">VIEW ➔</button>
                     </Link>
                   </td>
                 </motion.tr>
@@ -164,6 +213,18 @@ export default function DashboardPage() {
             </AnimatePresence>
           </tbody>
         </table>
+        
+        {records.length === 0 && !loading && (
+          <div className="p-20 text-center text-slate-400 font-bold">
+            該当するデータが見つかりません
+          </div>
+        )}
+        {loading && (
+          <div className="p-20 flex justify-center items-center gap-3 text-blue-500 font-bold">
+            <div className="animate-spin h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+            データを読み込み中...
+          </div>
+        )}
       </div>
     </main>
   );
