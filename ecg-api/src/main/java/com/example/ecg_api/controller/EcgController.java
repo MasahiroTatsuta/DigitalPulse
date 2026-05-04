@@ -44,9 +44,13 @@ public class EcgController {
     }
 
     @PostMapping("/import")
-    public ResponseEntity<String> importCsv(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<String> importCsv(
+        @RequestParam("file") MultipartFile file,
+        @RequestParam(value = "patientId", required = false) Integer patientId // 🌟 追加
+    ) {
         try {
-            ecgImportService.importCsv(file);
+            // service側にpatientIdも渡すように変更
+            ecgImportService.importCsv(file, patientId); 
             return ResponseEntity.ok("CSVのインポートとAI解析が完了しました！");
         } catch (Exception e) {
             e.printStackTrace();
