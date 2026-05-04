@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-// NextAuthProviderをインポート（パスが異なる場合は適宜調整してください）
+// NextAuthProviderをインポート
 import NextAuthProvider from "@/components/NextAuthProvider";
 import Sidebar from "@/components/Sidebar";
 
@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// メタデータを医療アプリらしく更新
+// メタデータの設定
 export const metadata: Metadata = {
   title: "DigitalPulse | 統合心電図解析システム",
   description: "医療従事者のためのセキュアな心電図データ管理プラットフォーム",
@@ -31,26 +31,23 @@ export default function RootLayout({
       lang="ja"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
-        {/* NextAuthProviderで全体を包み込むことで、認証状態をアプリ全体で共有します */}
+      <body className="min-h-full">
+        {/* 1. 認証状態をアプリ全体で共有 */}
         <NextAuthProvider>
-          {children}
-        </NextAuthProvider>
-      </body>
-    </html>
-  );
-}
+          
+          {/* 2. サイドバーとメインコンテンツを横並びにするコンテナ */}
+          <div className="flex">
+            
+            {/* 3. 左側に固定されるサイドバー */}
+            <Sidebar />
+            
+            {/* 4. 右側のメインコンテンツエリア（サイドバーの幅64分だけ左余白を作る） */}
+            <main className="flex-1 ml-64 min-h-screen bg-gray-50">
+              {children}
+            </main>
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="ja">
-      <body>
-        <div className="flex">
-          <Sidebar />
-          <div className="flex-1 ml-64 min-h-screen bg-gray-50">
-            {children}
           </div>
-        </div>
+        </NextAuthProvider>
       </body>
     </html>
   );
