@@ -4,6 +4,8 @@ import java.time.LocalDateTime;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -15,6 +17,7 @@ import lombok.Data;
 @Table(name = "ecg_records")
 public class EcgRecord {
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
     @ManyToOne
@@ -33,6 +36,7 @@ public class EcgRecord {
     @Column(name = "waveform_data", columnDefinition = "json")
     private String waveformData;
 
+    @Column(name = "doctor_comment", columnDefinition = "TEXT") // 🌟 columnDefinitionを追加
     private String doctorComment;
 
     @Column(name = "diagnosis_type")

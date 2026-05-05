@@ -1,0 +1,71 @@
+package com.example.ecg_api.controller;
+
+import com.example.ecg_api.dto.EcgPredictionRequest;
+import com.example.ecg_api.dto.EcgPredictionResponse;
+import com.example.ecg_api.service.AiInferenceService;
+import com.example.ecg_api.service.EcgImportService;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/ecg")
+public class EcgController {
+
+    private final AiInferenceService aiInferenceService;
+    private final EcgImportService ecgImportService;
+
+    @Autowired
+    public EcgController(AiInferenceService aiInferenceService, EcgImportService ecgImportService) {
+        this.aiInferenceService = aiInferenceService;
+        this.ecgImportService = ecgImportService;
+    }
+
+    // 🌟 [追加 ] 最新コードが反映されたか確認するためのテスト窓口
+    @GetMapping("/test")
+    public String test() {
+        return "最新のコードが正常に動いています！";
+    }
+
+    // AI解析用のPOST窓口
+    @PostMapping("/analyze")
+    public ResponseEntity<EcgPredictionResponse> analyzeEcg(@RequestBody EcgPredictionRequest request) {
+        // 👇 これを追加！これさえ出れば「最新のコード」が動いている証拠です
+        System.out.println("★AI解析リクエストを受け取りました！データ数: " + request.getWaveform().size());
+        
+        try {
+            EcgPredictionResponse response = aiInferenceService.predict(request.getWaveform());
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @PostMapping("/import")
+    public ResponseEntity<String> importCsv(
+        @RequestParam("file") MultipartFile file,
+        @RequestParam(value = "patientId", required = false) Integer patientId // 🌟 追加
+    ) {
+        try {
+            // service側にpatientIdも渡すように変更
+            ecgImportService.importCsv(file, patientId); 
+            return ResponseEntity.ok("CSVのインポートとAI解析が完了しました！");
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body("エラー: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/sync-ai")
+    public ResponseEntity<String> syncAi() {
+        try {
+            ecgImportService.processExistingRecords(); 
+            // 🌟 ここでメソッドを呼んでも、@Asyncのおかげですぐに次の行へ進みます
+            return ResponseEntity.accepted().body("AI解析をバックグラウンドで開始しました。完了までしばらくお待ちください。");
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("エラー: " + e.getMessage());
+        }
+    }
+}
