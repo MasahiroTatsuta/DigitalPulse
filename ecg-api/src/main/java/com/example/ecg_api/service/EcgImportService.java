@@ -33,12 +33,12 @@ public class EcgImportService {
     private EcgRecordRepository ecgRecordRepository;
 
     @Autowired
-    private PatientRepository patientRepository; // 🌟 ここで追加したリポジトリを使います
+    private PatientRepository patientRepository; // 🌟 必須：患者情報を検索するために使用
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public void importCsv(MultipartFile file, Integer patientId) throws Exception {
-        // インポート前に患者が存在するか確認
+        // 🌟 指定された患者IDが存在するか事前にチェック
         Patient patient = null;
         if (patientId != null) {
             patient = patientRepository.findById(patientId).orElse(null);
@@ -49,12 +49,12 @@ public class EcgImportService {
 
             for (CSVRecord csvRecord : csvParser) {
                 List<Double> waveform = new ArrayList<>();
-                // MIT-BIH形式(187列)を想定
+                // MIT-BIH形式(187列)の抽出
                 for (int i = 0; i < 187; i++) {
                     waveform.add(Double.parseDouble(csvRecord.get(i)));
                 }
 
-                // AI解析
+                // AI解析サービスの呼び出し
                 EcgPredictionResponse aiResult = aiInferenceService.predict(waveform);
 
                 EcgRecord record = new EcgRecord();
