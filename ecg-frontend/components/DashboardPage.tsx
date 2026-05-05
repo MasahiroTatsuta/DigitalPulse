@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation"; // 🌟 URLパラメータ取得のために追加
 import { motion, AnimatePresence } from "framer-motion";
 
 type Patient = { id: number; name: string };
@@ -14,9 +15,13 @@ type EcgRecord = {
 };
 
 export default function DashboardPage() {
+  const searchParams = useSearchParams(); // 🌟 URLのクエリパラメータ (?searchId=...) を取得
+  
   const [records, setRecords] = useState<EcgRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchId, setSearchId] = useState("");
+  
+  // 🌟 初期値をURLのsearchIdから取得。なければ空文字
+  const [searchId, setSearchId] = useState(searchParams.get("searchId") || "");
   const [targetPatientId, setTargetPatientId] = useState("");
   const [onlyAnomaly, setOnlyAnomaly] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -26,6 +31,8 @@ export default function DashboardPage() {
     setLoading(true);
     try {
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || "https://ecg-backend-api.onrender.com";
+      
+      // searchIdがある場合は検索API、ない場合は全件APIを叩く
       let url = searchId 
         ? `${baseUrl}/api/ecg/search?patientId=${searchId}${onlyAnomaly ? "&isAnomaly=true" : ""}`
         : `${baseUrl}/api/ecg/all`;
@@ -40,7 +47,7 @@ export default function DashboardPage() {
       if (!res.ok) throw new Error("Fetch failed");
       const data = await res.json();
       
-      // searchIdがない時のフロントエンド側異常フィルタリング
+      // フロントエンド側での補完フィルタリング
       const filteredData = (!searchId && onlyAnomaly) 
         ? data.filter((r: EcgRecord) => r.isAnomaly) 
         : data;
@@ -53,6 +60,15 @@ export default function DashboardPage() {
       setLoading(false);
     }
   };
+
+  // 🌟 URLのパラメータが変わった（または「異常のみ」が切り替わった）時に再検索
+  useEffect(() => {
+    const urlId = searchParams.get("searchId");
+    if (urlId) {
+      setSearchId(urlId);
+    }
+    fetchRecords();
+  }, [searchParams, onlyAnomaly]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -88,11 +104,7 @@ export default function DashboardPage() {
     }
   };
 
-  useEffect(() => {
-    fetchRecords();
-  }, [onlyAnomaly]);
-
-  // 🌟 統計データの計算
+  // 統計データの計算
   const stats = {
     total: records.length,
     anomalies: records.filter(r => r.isAnomaly).length,
@@ -108,7 +120,7 @@ export default function DashboardPage() {
         <p className="text-slate-500 font-bold mt-1 text-sm">システム全体の解析状況と最新の検査結果</p>
       </header>
 
-      {/* 🌟 統計カードセクション */}
+      {/* 統計カードセクション */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
         <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Records</p>
