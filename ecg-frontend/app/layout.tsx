@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 // NextAuthProviderをインポート
 import NextAuthProvider from "@/components/NextAuthProvider";
-import Sidebar from "@/components/Sidebar";
+import AppLayout from "@/components/AppLayout";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,20 +33,10 @@ export default function RootLayout({
     >
       <body className="min-h-full">
         {/* 1. 認証状態をアプリ全体で共有 */}
-        <NextAuthProvider>
-          
-          {/* 2. サイドバーとメインコンテンツを横並びにするコンテナ */}
-          <div className="flex">
-            
-            {/* 3. 左側に固定されるサイドバー */}
-            <Sidebar />
-            
-            {/* 4. 右側のメインコンテンツエリア（サイドバーの幅64分だけ左余白を作る） */}
-            <main className="flex-1 ml-64 min-h-screen bg-gray-50">
-              {children}
-            </main>
-
-          </div>
+        <NextAuthProvider>          
+          <AppLayout>
+            {children}
+          </AppLayout>
         </NextAuthProvider>
       </body>
     </html>
