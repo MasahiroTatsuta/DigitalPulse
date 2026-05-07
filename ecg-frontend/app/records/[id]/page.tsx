@@ -70,65 +70,78 @@ export default function RecordDetailPage() {
     setExporting(true);
 
     try {
-      // ── 1. html-to-image でスナップショット取得 ──────────────────────────
-      //    html-to-image は CSSOM を自前でシリアライズするため
-      //    lab() / oklch() などの未サポートカラーを含む computedStyle を
-      //    そのまま扱わずに済み、html2pdf の jsPDF パーサが詰まらない。
-      const { toPng } = await import("html-to-image");
+      const source = reportRef.current;
 
-      const dataUrl = await toPng(reportRef.current, {
-        cacheBust: true,
-        pixelRatio: 2,            // Retina 相当の解像度
-        backgroundColor: "#ffffff",
-        // フォント埋め込みを試みる（CORS が許可されている場合のみ有効）
-        includeQueryParams: true,
+      // ── Step 1: cloneNode して computedStyle で lab() を RGB に正規化 ──────
+      // jsPDF の内蔵カラーパーサは lab()/oklch() を解釈できないため、
+      // ブラウザが計算済みの RGB 値で全要素を上書きしてからキャプチャする。
+      const clone = source.cloneNode(true) as HTMLElement;
+      clone.style.cssText = `
+        position: fixed; top: 0; left: -9999px;
+        width: ${source.offsetWidth}px; z-index: -1;
+      `;
+      document.body.appendChild(clone);
+
+      const srcEls   = Array.from(source.querySelectorAll("*")) as HTMLElement[];
+      const cloneEls = Array.from(clone.querySelectorAll("*"))   as HTMLElement[];
+      srcEls.forEach((src, i) => {
+        const cs  = window.getComputedStyle(src);
+        const el  = cloneEls[i] as HTMLElement;
+        el.style.color           = cs.color;
+        el.style.backgroundColor = cs.backgroundColor;
+        el.style.borderColor     = cs.borderColor;
+        el.style.outlineColor    = cs.outlineColor;
+        el.style.boxShadow       = "none";
+        el.style.textShadow      = "none";
       });
 
-      // ── 2. jsPDF で A4 PDF に貼り付け ────────────────────────────────────
-      const { jsPDF } = await import("jspdf");
+      // ── Step 2: html2canvas でキャプチャ ────────────────────────────────
+      // html2canvas は html2pdf.js の依存として既にバンドル済みなので
+      // 追加 install 不要。直接 import して使う。
+      // @ts-ignore
+      const html2canvas = (await import("html2canvas")).default;
+      const canvas: HTMLCanvasElement = await (html2canvas as any)(clone, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        logging: false,
+        allowTaint: false,
+        foreignObjectRendering: false,
+      });
 
-      const A4_W_MM = 210;
-      const A4_H_MM = 297;
-      const MARGIN_MM = 10;
+      document.body.removeChild(clone);
+
+      // ── Step 3: jsPDF に貼り付けて複数ページ対応で保存 ─────────────────
+      const { jsPDF } = await import("jspdf");
+      const A4_W = 210, A4_H = 297, M = 10;
+      const printW = A4_W - M * 2;
+      const printH = (canvas.height / canvas.width) * printW;
+      const pageH  = A4_H - M * 2;
 
       const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+      let yOff = 0, first = true;
 
-      // 画像の実サイズ (px) を取得して mm に換算
-      const img = new Image();
-      await new Promise<void>((resolve) => { img.onload = () => resolve(); img.src = dataUrl; });
+      while (yOff < printH) {
+        if (!first) pdf.addPage();
+        const sliceH_mm = Math.min(pageH, printH - yOff);
+        const sliceH_px = Math.ceil((sliceH_mm / printH) * canvas.height);
+        const sliceY_px = Math.ceil((yOff      / printH) * canvas.height);
 
-      const imgW_px = img.naturalWidth;
-      const imgH_px = img.naturalHeight;
+        const pg = document.createElement("canvas");
+        pg.width  = canvas.width;
+        pg.height = sliceH_px;
+        pg.getContext("2d")!.drawImage(
+          canvas, 0, sliceY_px, canvas.width, sliceH_px,
+                  0, 0,         canvas.width, sliceH_px
+        );
+        pdf.addImage(pg.toDataURL("image/jpeg", 0.97), "JPEG", M, M, printW, sliceH_mm);
 
-      const printW_mm = A4_W_MM - MARGIN_MM * 2;
-      const printH_mm = (imgH_px / imgW_px) * printW_mm;
-
-      // 複数ページに分割して出力
-      const pageContentH_mm = A4_H_MM - MARGIN_MM * 2;
-      let yOffset = 0;
-      let isFirstPage = true;
-
-      while (yOffset < printH_mm) {
-        if (!isFirstPage) pdf.addPage();
-
-        const sliceH_mm = Math.min(pageContentH_mm, printH_mm - yOffset);
-        const sliceH_px = (sliceH_mm / printH_mm) * imgH_px;
-        const sliceY_px = (yOffset / printH_mm) * imgH_px;
-
-        // Canvas でスライスを切り出す
-        const canvas = document.createElement("canvas");
-        canvas.width = imgW_px;
-        canvas.height = Math.ceil(sliceH_px);
-        const ctx = canvas.getContext("2d")!;
-        ctx.drawImage(img, 0, -sliceY_px);
-
-        pdf.addImage(canvas.toDataURL("image/jpeg", 0.95), "JPEG", MARGIN_MM, MARGIN_MM, printW_mm, sliceH_mm);
-
-        yOffset += sliceH_mm;
-        isFirstPage = false;
+        yOff += sliceH_mm;
+        first = false;
       }
 
       pdf.save(`ECG_Report_#${recordId}.pdf`);
+
     } catch (error) {
       console.error("PDF生成エラー:", error);
       alert("PDF生成に失敗しました。ブラウザのコンソールを確認してください。");
