@@ -49,7 +49,9 @@ export default function RecordDetailPage() {
         const d = await res.json();
         setData(d);
         setComment(d.doctorComment || "");
+        
         const rawWaveform: number[] = JSON.parse(d.waveformData);
+        // 末尾の0（パディング）をカットするロジック
         let lastIndex = rawWaveform.length - 1;
         while (lastIndex >= 0 && rawWaveform[lastIndex] === 0) lastIndex--;
         const waveform = rawWaveform.slice(0, lastIndex + 2).map((v, i) => ({ time: i, voltage: v }));
@@ -63,15 +65,17 @@ export default function RecordDetailPage() {
     fetchData();
   }, [recordId, baseUrl]);
 
-  // 🌟 PDF出力ロジックの修正版
+  // 🌟 PDF出力ロジック：lab()カラーエラー & サイズ警告を徹底対策
   const exportPDF = async () => {
     if (!reportRef.current) return;
+    
     const html2pdf = (await import("html2pdf.js" as any)).default;
 
-    // 1. クローン作成 ＆ スタイル固定（labカラー対策 ＆ グラフサイズ対策）
+    // 1. クローンを作成
     const clone = reportRef.current.cloneNode(true) as HTMLElement;
     document.body.appendChild(clone);
 
+    // 2. スタイルの徹底「平坦化」
     const allElements = clone.getElementsByTagName("*");
     const originalElements = reportRef.current.getElementsByTagName("*");
 
@@ -80,36 +84,49 @@ export default function RecordDetailPage() {
       const source = originalElements[i] as HTMLElement;
       const style = window.getComputedStyle(source);
 
-      // Tailwind v4 の lab() / oklch() を RGB に強制変換
+      // 【重要】Tailwind v4 の lab/oklch をブラウザ計算済みの RGB に変換して注入
       target.style.color = style.color;
       target.style.backgroundColor = style.backgroundColor;
       target.style.borderColor = style.borderColor;
       target.style.fill = style.fill;
+      target.style.stroke = style.stroke;
+      
+      // 影(box-shadow)は lab() が混じりやすいためPDFでは無効化
+      target.style.boxShadow = "none";
 
-      // グラフサイズが -1 になるのを防ぐ (PDF内では固定幅)
+      // 【重要】Rechartsコンテナに固定サイズを強制（width -1 回避）
       if (target.classList.contains('recharts-responsive-container')) {
-        target.style.width = '700px';
-        target.style.height = '300px';
+        target.style.width = '750px';   
+        target.style.height = '350px';  
+        target.style.visibility = 'visible';
+        target.style.opacity = '1';
       }
     }
 
     clone.style.position = "fixed";
     clone.style.top = "0";
     clone.style.left = "-9999px";
-    clone.style.width = "800px";
+    clone.style.width = "800px"; 
+    clone.style.display = "block";
 
     const opt = {
-      margin: 10,
+      margin: [10, 10],
       filename: `ECG_Report_#${recordId}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+      html2canvas: { 
+        scale: 2, 
+        useCORS: true, 
+        letterRendering: true,
+        logging: false 
+      },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
     try {
       await (html2pdf as any)().set(opt).from(clone).save();
     } catch (error) {
-      console.error("PDF生成中にエラーが発生しました:", error);
+      console.error("PDF生成エラー:", error);
+      alert("PDFの生成に失敗しました。");
     } finally {
       document.body.removeChild(clone);
     }
@@ -136,93 +153,156 @@ export default function RecordDetailPage() {
   );
 
   return (
-    // 🌟 全体を overflow-x-hidden で包み、横揺れを防止
-    <main className="p-4 sm:p-10 bg-gray-50 min-h-screen font-sans text-gray-900 overflow-x-hidden w-full max-w-full">
+    // overflow-x-hidden でスマホでの横揺れを防止
+    <main className="p-4 sm:p-10 bg-gray-50 min-h-screen font-sans text-gray-900 overflow-x-hidden w-full">
+      
+      {/* 操作ボタンエリア */}
       <div className="flex justify-between items-center mb-8 no-print max-w-4xl mx-auto">
-        <button onClick={() => router.push('/')} className="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-blue-600">← Back</button>
-        <button onClick={exportPDF} className="bg-blue-600 text-white px-4 py-2 sm:px-6 sm:py-2 rounded-full font-bold shadow-lg text-xs sm:text-base transition-all active:scale-95">📄 PDF Report</button>
+        <button 
+          onClick={() => router.push('/')} 
+          className="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-blue-600 transition-colors"
+        >
+          ← Dashboard
+        </button>
+        <button 
+          onClick={exportPDF} 
+          className="bg-blue-600 text-white px-5 py-2 sm:px-8 sm:py-3 rounded-full font-black shadow-xl text-[10px] sm:text-xs uppercase tracking-widest hover:bg-blue-700 active:scale-95 transition-all"
+        >
+          📄 Download PDF Report
+        </button>
       </div>
 
       <div ref={reportRef} className="max-w-4xl mx-auto space-y-6">
-        {/* 患者情報カード - スマホではパディングを減らす(p-4) */}
-        <div className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-gray-100">
-          <div className="flex flex-col sm:flex-row justify-between items-start mb-6 border-b pb-6 gap-4">
+        
+        {/* 患者情報セクション */}
+        <div className="bg-white p-6 sm:p-10 rounded-3xl shadow-sm border border-gray-100">
+          <div className="flex flex-col sm:flex-row justify-between items-start mb-10 border-b border-gray-50 pb-10 gap-6">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tighter">DigitalPulse <span className="text-blue-600">AI</span></h1>
-              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.2em]">Clinical Analysis Report</p>
+              <h1 className="text-2xl sm:text-4xl font-black text-gray-900 tracking-tighter">
+                DigitalPulse <span className="text-blue-600">AI</span>
+              </h1>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.3em] mt-2">
+                Cardiology Diagnostic Report
+              </p>
             </div>
             <div className="text-left sm:text-right w-full sm:w-auto">
-              <p className="text-[10px] font-mono text-gray-400">REPORT_ID: #{data?.id}</p>
-              <p className="text-[10px] text-gray-500">{new Date().toLocaleDateString('ja-JP')}</p>
+              <p className="text-[10px] font-mono text-gray-400">RECORD_ID: #{data?.id}</p>
+              <p className="text-[11px] font-bold text-gray-500 mt-1">
+                {new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}
+              </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-blue-100 rounded-2xl flex items-center justify-center text-xl sm:text-2xl font-black text-blue-600">
-                {data?.patient?.name ? data.patient.name.charAt(0) : "?"}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+            <div className="flex items-center gap-6">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-blue-50 rounded-[2rem] flex items-center justify-center text-2xl sm:text-3xl font-black text-blue-600 shadow-inner">
+                {data?.patient?.name ? data.patient.name.charAt(0) : "P"}
               </div>
-              <div className="overflow-hidden">
-                <p className="text-[9px] font-bold text-gray-400 uppercase">Patient Name</p>
-                <h2 className="text-lg sm:text-xl font-bold text-gray-800 truncate">{data?.patient?.name || "未登録"}</h2>
-                <p className="text-[10px] font-mono text-gray-500">{data?.patient?.id ? `PT-${data.patient.id.toString().padStart(4, '0')}` : "ID: ----"}</p>
+              <div className="min-w-0">
+                <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest mb-1">Patient Subject</p>
+                <h2 className="text-xl sm:text-2xl font-black text-gray-800 truncate">
+                  {data?.patient?.name || "Anonymous Patient"}
+                </h2>
+                <p className="text-[11px] font-mono text-gray-400 mt-1">
+                  {data?.patient?.id ? `PT-${data.patient.id.toString().padStart(4, '0')}` : "UNREGISTERED"}
+                </p>
               </div>
             </div>
-            <div className="flex gap-8 md:justify-end text-sm">
-              <div><p className="text-[9px] font-bold text-gray-400 uppercase">Age</p><p className="font-bold text-gray-700">{data?.patient?.age ?? "--"} y/o</p></div>
-              <div><p className="text-[9px] font-bold text-gray-400 uppercase">Gender</p><p className="font-bold text-gray-700">{data?.patient?.gender || "不明"}</p></div>
+            <div className="flex gap-10 md:justify-end">
+              <div className="text-center sm:text-right">
+                <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest mb-1">Age</p>
+                <p className="text-xl font-black text-gray-700">{data?.patient?.age ?? "--"}<span className="text-xs ml-1 text-gray-400">y/o</span></p>
+              </div>
+              <div className="text-center sm:text-right">
+                <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest mb-1">Gender</p>
+                <p className="text-xl font-black text-gray-700 uppercase">{data?.patient?.gender || "N/A"}</p>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* 判定結果 - スマホでは文字サイズ調整 */}
-        <div className={`p-5 sm:p-8 rounded-2xl border-l-[8px] sm:border-l-[12px] shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4 bg-white ${data?.isAnomaly ? 'border-red-500' : 'border-green-500'}`}>
+        {/* 診断ステータス */}
+        <div className={`p-6 sm:p-10 rounded-3xl border-l-[12px] sm:border-l-[20px] shadow-sm flex flex-col sm:flex-row justify-between items-center gap-6 bg-white transition-all ${data?.isAnomaly ? 'border-red-500 shadow-red-100/50' : 'border-green-500 shadow-green-100/50'}`}>
           <div className="text-center sm:text-left">
-            <h3 className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">AI Diagnostic Result</h3>
-            <p className="text-lg sm:text-2xl font-black text-gray-800">{getDiagnosisName(data?.diagnosisType)}</p>
+            <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Automated Diagnostic Result</h3>
+            <p className="text-xl sm:text-3xl font-black text-gray-800 leading-tight">
+              {getDiagnosisName(data?.diagnosisType)}
+            </p>
           </div>
-          <div className={`w-full sm:w-auto px-6 py-2 sm:px-10 sm:py-4 rounded-xl text-2xl sm:text-4xl font-black italic tracking-tighter text-center ${data?.isAnomaly ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
+          <div className={`w-full sm:w-auto px-8 py-4 sm:px-12 sm:py-6 rounded-2xl text-2xl sm:text-5xl font-black italic tracking-tighter text-center shadow-sm ${data?.isAnomaly ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
             {data?.isAnomaly ? 'POSITIVE' : 'NEGATIVE'}
           </div>
         </div>
 
-        {/* グラフカード - 100%幅を維持しつつ親を固定 */}
-        <div className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-gray-100 w-full overflow-hidden">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Waveform Visualizer</h3>
+        {/* グラフ表示セクション */}
+        <div className="bg-white p-6 sm:p-10 rounded-3xl shadow-sm border border-gray-100 w-full overflow-hidden">
+          <div className="flex items-center justify-between mb-8">
+            <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">High-Resolution Waveform</h3>
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></span>
+              <span className="text-[10px] font-bold text-gray-400 uppercase">Live Rendering</span>
+            </div>
           </div>
-          <div className="h-[200px] sm:h-[300px] w-full">
+          <div className="h-[250px] sm:h-[350px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartData}>
-                <defs><linearGradient id="colorVolt" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={data?.isAnomaly ? "#ef4444" : "#3b82f6"} stopOpacity={0.1}/><stop offset="95%" stopColor={data?.isAnomaly ? "#ef4444" : "#3b82f6"} stopOpacity={0}/></linearGradient></defs>
+                <defs>
+                  <linearGradient id="colorVolt" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={data?.isAnomaly ? "#ef4444" : "#3b82f6"} stopOpacity={0.15}/>
+                    <stop offset="95%" stopColor={data?.isAnomaly ? "#ef4444" : "#3b82f6"} stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="time" hide />
-                <YAxis domain={['auto', 'auto']} stroke="#94a3b8" fontSize={9} tickLine={false} axisLine={false} />
+                <YAxis domain={['auto', 'auto']} stroke="#cbd5e1" fontSize={10} fontWeight="bold" tickLine={false} axisLine={false} />
                 <Tooltip />
-                <Area type="monotone" dataKey="voltage" stroke={data?.isAnomaly ? "#ef4444" : "#3b82f6"} strokeWidth={2} fillOpacity={1} fill="url(#colorVolt)" isAnimationActive={false}/>
+                <Area 
+                  type="monotone" 
+                  dataKey="voltage" 
+                  stroke={data?.isAnomaly ? "#ef4444" : "#3b82f6"} 
+                  strokeWidth={3} 
+                  fillOpacity={1} 
+                  fill="url(#colorVolt)" 
+                  isAnimationActive={false}
+                />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* AIレポート */}
-        <div className="bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-gray-100">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-1.5 h-5 bg-blue-600 rounded-full"></div>
-            <h3 className="font-black text-gray-800 uppercase tracking-tight text-sm">AI Generated Report</h3>
+        {/* AIレポート詳細 */}
+        <div className="bg-white p-8 sm:p-10 rounded-3xl shadow-sm border border-gray-100">
+          <div className="flex items-center gap-3 mb-8">
+            <div className="w-2 h-8 bg-blue-600 rounded-full"></div>
+            <h3 className="font-black text-gray-800 uppercase tracking-tight text-base">AI Generated Clinical Report</h3>
           </div>
-          <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100 text-[11px] sm:text-sm leading-relaxed text-gray-700 whitespace-pre-wrap font-medium">
-            {comment || "解析データがありません。"}
+          <div className="p-6 sm:p-8 bg-blue-50/30 rounded-[2rem] border border-blue-100/50 text-sm sm:text-base leading-relaxed text-gray-700 whitespace-pre-wrap font-medium italic">
+            {comment || "解析データが読み込めません。再度実行してください。"}
           </div>
         </div>
       </div>
 
-      {/* 医師用メモ - スマホでは全幅 */}
-      <div className="max-w-4xl mx-auto mt-8 p-6 sm:p-8 bg-slate-800 rounded-3xl shadow-2xl no-print">
-        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-4">医師による修正・追記</label>
-        <textarea className="w-full h-32 p-4 bg-slate-900 border-none rounded-2xl text-slate-200 text-sm focus:ring-1 focus:ring-blue-500 outline-none resize-none" value={comment} onChange={(e) => setComment(e.target.value)} />
-        <div className="flex justify-end mt-4">
-          <button onClick={saveComment} className="w-full sm:w-auto bg-blue-500 text-white px-8 py-3 rounded-xl font-black text-xs shadow-lg active:scale-95 transition-all">Update Report</button>
+      {/* 医師用追記フォーム (印刷対象外) */}
+      <div className="max-w-4xl mx-auto mt-12 p-8 sm:p-10 bg-slate-900 rounded-[3rem] shadow-2xl no-print">
+        <div className="flex items-center justify-between mb-6">
+          <label className="text-[11px] font-black text-slate-500 uppercase tracking-[0.3em]">
+            Professional Clinical Notes
+          </label>
+          <span className="text-[10px] text-slate-600 font-bold italic">※Auto-saves to database</span>
+        </div>
+        <textarea 
+          className="w-full h-48 p-6 bg-slate-950 border-none rounded-3xl text-slate-300 text-sm focus:ring-2 focus:ring-blue-600 outline-none transition-all resize-none font-medium leading-relaxed" 
+          placeholder="所見を入力してください..."
+          value={comment} 
+          onChange={(e) => setComment(e.target.value)} 
+        />
+        <div className="flex justify-end mt-6">
+          <button 
+            onClick={saveComment} 
+            className="w-full sm:w-auto bg-blue-600 text-white px-10 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl hover:bg-blue-500 active:scale-95 transition-all"
+          >
+            Update Diagnosis Report
+          </button>
         </div>
       </div>
     </main>
