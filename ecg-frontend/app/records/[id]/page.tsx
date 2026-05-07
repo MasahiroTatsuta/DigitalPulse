@@ -22,7 +22,7 @@ type Patient = { id: number; name: string; age: number; gender: string };
 type EcgRecord = {
   id: number;
   patient: Patient | null;
-  isAnomaly: boolean;
+  anomaly: boolean; // 🌟 isAnomaly から anomaly に変更
   waveformData: string;
   doctorComment?: string;
   diagnosisType?: number;
@@ -70,12 +70,6 @@ export default function RecordDetailPage() {
     setExporting(true);
 
     try {
-      // ── DOM / CSS を一切経由しない純粋データ→HTML 方式 ─────────────────
-      // html2canvas / html2pdf はページの CSS スタイルシートを読むため
-      // Tailwind v4 の lab()/oklch() を避けられない。
-      // そのためデータから直接 HTML 文字列を組み立て、
-      // 新しいウィンドウで window.print() → PDF として保存 を使う。
-
       // 1. ECG 波形を SVG ポリラインとして描画
       const W = 750, H = 220;
       const voltages: number[] = chartData.map((d: any) => d.voltage as number);
@@ -88,7 +82,7 @@ export default function RecordDetailPage() {
         return `${x.toFixed(1)},${y.toFixed(1)}`;
       }).join(" ");
 
-      const accent = data?.isAnomaly ? "#ef4444" : "#3b82f6";
+      const accent = data?.anomaly ? "#ef4444" : "#3b82f6"; // 🌟 anomaly に変更
       const gridLines = [0,1,2,3,4].map(i => {
         const y = (10 + i * ((H - 20) / 4)).toFixed(1);
         return `<line x1="0" y1="${y}" x2="${W}" y2="${y}" stroke="#f1f5f9" stroke-width="1"/>`;
@@ -106,8 +100,8 @@ export default function RecordDetailPage() {
   <polyline points="${points}" fill="none" stroke="${accent}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
 </svg>`;
 
-      // 2. 印刷用 HTML — 全色を hex/rgb で直接指定（Tailwind CSS を一切使わない）
-      const isAnomaly     = data?.isAnomaly;
+      // 2. 印刷用 HTML
+      const isAnomaly     = data?.anomaly; // 🌟 anomaly に変更
       const diagnosisBg   = isAnomaly ? "#fef2f2"  : "#f0fdf4";
       const borderColor   = isAnomaly ? "#ef4444"  : "#22c55e";
       const badgeColor    = isAnomaly ? "#dc2626"  : "#16a34a";
@@ -183,10 +177,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <script>window.onload=()=>{window.print();}<\/script>
 </body></html>`;
 
-      // 3. 新しいウィンドウで印刷ダイアログを起動（PDF として保存）
       const win = window.open("", "_blank", "width=900,height=700");
       if (!win) {
-        alert("ポップアップがブロックされました。このサイトのポップアップを許可してください。");
+        alert("ポップアップがブロックされました。");
         return;
       }
       win.document.write(html);
@@ -220,17 +213,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
     </div>
   );
 
-  // ── Recharts: ResponsiveContainer を廃止し固定サイズで描画 ───────────────
-  // ResponsiveContainer は DOM サイズを読んでから内部に幅/高さを渡すが、
-  // PDF 生成中（hidden clone など）ではサイズが -1 になり警告が出る。
-  // 固定の width / height を直接指定することで問題を完全に回避する。
   const CHART_WIDTH = 700;
   const CHART_HEIGHT = 250;
-  const chartColor = data?.isAnomaly ? "#ef4444" : "#3b82f6";
+  const chartColor = data?.anomaly ? "#ef4444" : "#3b82f6"; // 🌟 anomaly に変更
 
   return (
     <main className="p-4 sm:p-10 bg-gray-50 min-h-screen font-sans text-gray-900 overflow-x-hidden w-full">
-      {/* ナビゲーション (印刷対象外) */}
       <div className="flex justify-between items-center mb-8 no-print max-w-4xl mx-auto">
         <button
           onClick={() => router.push('/')}
@@ -247,7 +235,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
         </button>
       </div>
 
-      {/* ── PDF に含まれるレポート本体 ─────────────────────────────────────── */}
       <div ref={reportRef} className="max-w-4xl mx-auto space-y-6">
         <div className="bg-white p-6 sm:p-10 rounded-3xl shadow-sm border border-gray-100">
           {/* ヘッダー */}
@@ -291,19 +278,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
           </div>
 
           {/* 診断結果バナー */}
-          <div className={`p-6 rounded-2xl border-l-[12px] flex flex-col sm:flex-row justify-between items-center gap-4 bg-white shadow-sm mb-10 ${data?.isAnomaly ? 'border-red-500' : 'border-green-500'}`}>
+          <div className={`p-6 rounded-2xl border-l-[12px] flex flex-col sm:flex-row justify-between items-center gap-4 bg-white shadow-sm mb-10 ${data?.anomaly ? 'border-red-500' : 'border-green-500'}`}>
             <div>
               <h3 className="text-[10px] font-black text-gray-400 uppercase mb-1">Diagnostic Result</h3>
               <p className="text-xl font-black text-gray-800">{getDiagnosisName(data?.diagnosisType)}</p>
             </div>
-            <div className={`px-8 py-3 rounded-xl text-3xl font-black italic ${data?.isAnomaly ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
-              {data?.isAnomaly ? 'POSITIVE' : 'NEGATIVE'}
+            <div className={`px-8 py-3 rounded-xl text-3xl font-black italic ${data?.anomaly ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
+              {data?.anomaly ? 'POSITIVE' : 'NEGATIVE'}
             </div>
           </div>
 
-          {/* ECG 波形グラフ
-              ★ ResponsiveContainer を廃止し width/height を直接指定
-                 → PDF 生成時の width(-1)/height(-1) 警告が消える         */}
+          {/* ECG 波形グラフ */}
           <div className="bg-white p-6 rounded-2xl border border-gray-100 w-full overflow-x-auto">
             <h3 className="text-[10px] font-black text-gray-400 uppercase mb-6 tracking-widest">ECG Waveform</h3>
             <AreaChart
@@ -344,7 +329,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
         </div>
       </div>
 
-      {/* ── Doctor's Notes (印刷対象外) ───────────────────────────────────── */}
       <div className="max-w-4xl mx-auto mt-12 p-8 bg-slate-900 rounded-[2.5rem] shadow-2xl no-print">
         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-4">
           Doctor&apos;s Clinical Notes
