@@ -122,3 +122,25 @@ DigitalPulse は、MIT-BIH不整脈データベースを活用した、医療従
 ---
 
 *© 2026 DigitalPulse Medical System. Created for Academic Purposes.*
+
+---
+
+## ⚖️ ライセンス / OSS・データセット表記
+
+### プロジェクトライセンス
+本プロジェクトは MIT License のもとで公開されています。  
+詳細は `LICENSE` ファイルを参照してください。
+
+### 利用データセット
+本システムでは、PhysioNet が提供する MIT-BIH Arrhythmia Database を研究・学習用途で利用しています。
+
+- Dataset: MIT-BIH Arrhythmia Database
+- Provider: PhysioNet
+- URL: https://physionet.org/content/mitdb/
+
+利用時は PhysioNet の利用条件および引用ポリシーに従ってください。
+
+### 使用OSSライブラリ
+本システムでは Next.js / React / Spring Boot / FastAPI / Recharts など、
+各ライブラリのライセンス条件に従って OSS を利用しています。
+詳細な依存関係ライセンスは各 `package-lock.json` / `pom.xml` / `requirements.txt` を参照してください。
