@@ -12,18 +12,47 @@ DigitalPulse は、MIT-BIH不整脈データベースを活用した、医療従
 
 ```text
 .
-├── ecg-api/             # Backend: Spring Boot 3.4 (Java 21)
-│   ├── src/main/java/   # APIエンドポイント・心電図解析ロジック
-│   └── pom.xml          # Maven依存関係管理
-├── ecg-frontend/        # Frontend: Next.js 15 (App Router)
-│   ├── app/             # Dashboard, Patients, Records 各画面
-│   └── components/      # Sidebar, Charts, AppLayout 等のUI
-├── ecg-ai/              # AI Service: FastAPI (Python)
-│   ├── main.py          # 解析エンジン・不整脈判定ロジック
-│   └── model etc        # 学習済みモデル・推論エンジン
-├── scripts/             # Utility: 開発用ツール
-│   └── ecg-data-importer/ # 大量データ投入用スクリプト
-└── README.md            # 本ドキュメント
+├── apps/
+│   ├── ecg-frontend/                     # Next.js 15 Frontend
+│   │   ├── app/
+│   │   ├── components/
+│   │   ├── public/
+│   │   └── package.json
+│   │
+│   ├── ecg-api/                          # Spring Boot Backend
+│   │   ├── src/main/java/
+│   │   ├── src/main/resources/
+│   │   └── pom.xml
+│   │
+│   └── ecg-ai/                   # FastAPI AI Service
+│       ├── app/
+│       ├── models/
+│       ├── requirements.txt
+│       └── main.py
+│
+├── docs/
+│   ├── DigitalPulse_ER図.pdf
+│   ├── DigitalPulse_画面遷移図.pdf
+│   ├── DigitalPulse_基本設計書.pdf
+│   ├── DigitalPulse_詳細設計書.pdf
+│   ├── DigitalPulse_要件定義書.pdf
+│   ├── DP-TP-001_テスト計画書.pdf
+│   ├── DP-TR-001_テスト結果報告書.pdf
+│   └── DP-TS-001_テスト仕様書.pdf
+│
+├── assets/
+│   ├── screenshots/                  # UIスクリーンショット
+│   └── sample-ecg/                   # ECGサンプルデータ
+│
+├── infra/
+│   └── docker-compose.yml
+│
+├── scripts/
+│   └── ecg-data-importer/
+│
+├── README.md
+├── LICENSE
+├── .gitignore
 ````
 
 ---
