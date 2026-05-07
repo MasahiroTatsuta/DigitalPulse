@@ -158,7 +158,7 @@ DigitalPulse は、MIT-BIH不整脈データベースを活用した、医療従
 詳細は `LICENSE` ファイルを参照してください。
 
 ### 利用データセット
-本システムでは、PhysioNet が提供する MIT-BIH Arrhythmia Database を研究・学習用途で利用しています。
+本システムでは、PhysioNet が提供する MIT-BIH Arrhythmia Database（Kaggleにて配布されている加工済みデータセット）を研究・学習用途で利用しています。
 
 - Dataset: MIT-BIH Arrhythmia Database
 - Provider: PhysioNet
