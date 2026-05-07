@@ -11,7 +11,7 @@ type EcgRecord = {
   patient?: Patient; 
   isAnomaly: boolean; 
   doctorComment: string | null;
-  waveformData: string;
+  // waveformData: string;
 };
 
 export default function DashboardPage() {
