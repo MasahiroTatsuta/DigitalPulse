@@ -44,9 +44,6 @@ DigitalPulse は、MIT-BIH不整脈データベースを活用した、医療従
 │   ├── screenshots/                  # UIスクリーンショット
 │   └── sample-ecg/                   # ECGサンプルデータ
 │
-├── infra/
-│   └── docker-compose.yml
-│
 ├── scripts/
 │   └── ecg-data-importer/
 │
