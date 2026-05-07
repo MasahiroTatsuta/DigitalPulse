@@ -2,54 +2,62 @@ package com.example.ecg_api.controller;
 
 import com.example.ecg_api.entity.EcgRecord;
 import com.example.ecg_api.repository.EcgRecordRepository;
+import com.example.ecg_api.dto.EcgRecordSummaryDTO;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import java.util.List;
+import org.springframework.data.domain.Page; // 🌟 追加
+import org.springframework.data.domain.PageRequest; // 🌟 追加
+import org.springframework.data.domain.Pageable; // 🌟 追加
+import org.springframework.web.bind.annotation.*;
+// import java.util.List;
 
 @RestController
 @RequestMapping("/api/ecg")
-// @CrossOrigin(origins = "*") // フロントエンド(Next.js)からのアクセスを許可する設定
 public class EcgRecordController {
 
     @Autowired
     private EcgRecordRepository repository;
 
+    // Entity -> DTO 変換ロジック
+    private EcgRecordSummaryDTO convertToDTO(EcgRecord record) {
+        return new EcgRecordSummaryDTO(
+            record.getId(),
+            record.getPatient() != null ? record.getPatient().getId() : null,
+            record.getPatient() != null ? record.getPatient().getName() : "GUEST",
+            record.getIsAnomaly(),
+            record.getDoctorComment(),
+            record.getRecordedAt()
+        );
+    }
+
+    // 🌟 ページネーション対応：全件取得
     @GetMapping("/all")
-    public List<EcgRecord> getAllEcgRecords() {
-        // IDの新しい順（降順）ですべて取得する
-        return repository.findAllByOrderByIdDesc(); 
+    public Page<EcgRecordSummaryDTO> getAllEcgRecords(
+        @RequestParam(defaultValue = "0") int page,
+        @RequestParam(defaultValue = "20") int size
+    ) {
+        Pageable pageable = PageRequest.of(page, size);
+        // Pageインターフェースの map メソッドを使ってDTOに変換
+        return repository.findAllByOrderByIdDesc(pageable).map(this::convertToDTO);
     }
 
-    // 一覧データを100件取得するAPI (http://localhost:8080/api/ecg/summary)
-    @GetMapping("/summary")
-    public List<EcgRecord> getEcgSummary() {
-        return repository.findTop100ByOrderByIdAsc();
+    // 🌟 ページネーション対応：検索
+    @GetMapping("/search")
+    public Page<EcgRecordSummaryDTO> search(
+        @RequestParam(required = false) Integer patientId,
+        @RequestParam(required = false) Boolean isAnomaly,
+        @RequestParam(defaultValue = "0") int page,
+        @RequestParam(defaultValue = "20") int size
+    ) {
+        Pageable pageable = PageRequest.of(page, size);
+        return repository.searchRecords(patientId, isAnomaly, pageable).map(this::convertToDTO);
     }
 
-    // 例: GET http://localhost:8080/api/ecg/1 にアクセスしたときの処理API
+    // 特定のIDの詳細取得（波形データが必要なため Entity をそのまま返す）
     @GetMapping("/{id}")
     public EcgRecord getEcgRecordById(@PathVariable Integer id) {
-        // データベースからIDを指定して1件取得し、フロントエンドにJSONとして返す
         return repository.findById(id).orElse(null);
     }
 
-    // 患者ID、異常フラグからデータを絞り込んで検索するAPI (http://localhost:8080/api/ecg/search)
-    @GetMapping("/search")
-    public List<EcgRecord> search(
-        @RequestParam(required = false) Integer patientId,
-        @RequestParam(required = false) Boolean isAnomaly
-    ) {
-        return repository.searchRecords(patientId, isAnomaly);
-    }
-
-    // コメントを更新するAPI
     @PutMapping("/{id}/comment")
     public void updateComment(@PathVariable Integer id, @RequestBody String comment) {
         EcgRecord record = repository.findById(id).orElse(null);
@@ -58,4 +66,12 @@ public class EcgRecordController {
             repository.save(record);
         }
     }
+
+    // ※ summary API は Pageable を使う「all」で代用できるため、必要に応じて削除または固定値運用にします
+    // @GetMapping("/summary")
+    // public List<EcgRecordSummaryDTO> getEcgSummary() {
+    //     return repository.findTop100ByOrderByIdAsc().stream()
+    //             .map(this::convertToDTO)
+    //             .collect(java.util.stream.Collectors.toList());
+    // }
 }
