@@ -11,6 +11,8 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.Data;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Data
 @Entity
@@ -33,6 +35,7 @@ public class EcgRecord {
     @Column(name = "is_anomaly")
     private Boolean isAnomaly;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "waveform_data", columnDefinition = "json")
     private String waveformData;
 
